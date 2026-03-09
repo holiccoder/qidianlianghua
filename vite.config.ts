@@ -230,6 +230,19 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
+function vitePluginStripGoogleFonts(): Plugin {
+  const googleFontLinkPattern =
+    /^\s*<link[^>]*href=["']https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com)[^"']*["'][^>]*>\s*$/gm;
+
+  return {
+    name: "strip-google-font-links",
+
+    transformIndexHtml(html) {
+      return html.replace(googleFontLinkPattern, "");
+    },
+  };
+}
+
 function vitePluginTokenMetrics(
   contractAddress: string,
   buybackWalletAddress?: string
@@ -981,6 +994,7 @@ export default defineConfig(({ mode }) => {
     env.BUYBACK_WALLET_ADDRESS || env.VITE_BUYBACK_WALLET_ADDRESS;
 
   const plugins = [
+    vitePluginStripGoogleFonts(),
     react(),
     tailwindcss(),
     jsxLocPlugin(),
