@@ -1,0 +1,32 @@
+[
+  {
+    "id": "1",
+    "contract": "币安带单保证金",
+    "amount": 31325
+  },
+  {
+    "id": "2",
+    "contract": "合约",
+    "amount": 22375
+  },
+  {
+    "id": "3",
+    "contract": "BTC现货",
+    "amount": 13425
+  },
+  {
+    "id": "4",
+    "contract": "ETH现货",
+    "amount": 8950
+  },
+  {
+    "id": "5",
+    "contract": "其他代币",
+    "amount": 7160
+  },
+  {
+    "id": "6",
+    "contract": "USDT储备",
+    "amount": 4265
+  }
+]
