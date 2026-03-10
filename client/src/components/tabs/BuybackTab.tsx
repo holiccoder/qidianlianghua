@@ -2,11 +2,11 @@
  * BuybackTab - 回购页面
  * 展示回购销毁数据和历史记录
  */
-import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import DataCard from "../DataCard";
-import { overviewData } from "@/lib/data";
 import { useBurnRecords } from "@/hooks/useBurnRecords";
+import { overviewData, updateDestroyedFallback } from "@/lib/data";
 import { Flame, CheckCircle2 } from "lucide-react";
 
 interface TokenMetricsResponse {
@@ -24,30 +24,15 @@ function shortenHash(hash: string): string {
 }
 
 export default function BuybackTab() {
-  const [totalBurned, setTotalBurned] = useState(overviewData.destroyed);
   const {
     records: burnRecords,
     loading: burnRecordsLoading,
     error: burnRecordsError,
   } = useBurnRecords();
   const latestBurnRecord = burnRecords[0];
-
-  const burnCountValue =
-    burnRecordsLoading && burnRecords.length === 0
-      ? "加载中..."
-      : burnRecords.length.toLocaleString();
-
-  const latestBuybackTimeValue = latestBurnRecord
-    ? latestBurnRecord.time
-    : burnRecordsLoading
-      ? "加载中..."
-      : "--";
-
-  const latestBuybackAmountValue = latestBurnRecord
-    ? `${latestBurnRecord.burnAmount} 枚`
-    : burnRecordsLoading
-      ? "加载中..."
-      : "--";
+  const [totalBurnedValue, setTotalBurnedValue] = useState(
+    overviewData.destroyed
+  );
 
   useEffect(() => {
     let isDisposed = false;
@@ -56,6 +41,7 @@ export default function BuybackTab() {
     async function loadBurnedTotal() {
       try {
         const response = await fetch("/api/token-metrics");
+
         if (!response.ok) {
           return;
         }
@@ -66,12 +52,16 @@ export default function BuybackTab() {
           return;
         }
 
-        const nextValue = payload.burnedTotal?.trim();
-        if (nextValue) {
-          setTotalBurned(nextValue);
+        const latestBurnedTotal = payload.burnedTotal?.trim();
+
+        if (!latestBurnedTotal) {
+          return;
         }
+
+        setTotalBurnedValue(latestBurnedTotal);
+        updateDestroyedFallback(latestBurnedTotal);
       } catch {
-        // Keep fallback value when request fails.
+        // Keep fallback values when request fails.
       }
     }
 
@@ -89,6 +79,18 @@ export default function BuybackTab() {
     };
   }, []);
 
+  const latestBuybackTimeValue = latestBurnRecord
+    ? latestBurnRecord.time
+    : burnRecordsLoading
+      ? "加载中..."
+      : "--";
+
+  const latestBuybackAmountValue = latestBurnRecord
+    ? `${latestBurnRecord.burnAmount} 枚`
+    : burnRecordsLoading
+      ? "加载中..."
+      : "--";
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -97,20 +99,13 @@ export default function BuybackTab() {
       className="space-y-6"
     >
       {/* 回购概览 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <DataCard
           label="累计回购销毁"
-          value={totalBurned}
+          value={totalBurnedValue}
           icon="Flame"
           color="red"
           delay={0}
-        />
-        <DataCard
-          label="燃烧次数"
-          value={burnCountValue}
-          icon="RefreshCw"
-          color="amber"
-          delay={0.05}
         />
         <DataCard
           label="最近回购时间"
@@ -140,7 +135,7 @@ export default function BuybackTab() {
             回购销毁记录
           </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            自动回购并销毁 $奇点量化 代币
+            自动回购并销毁 $虾交易 代币
           </p>
           {burnRecordsError && (
             <p className="text-xs text-rose-300 mt-2">{burnRecordsError}</p>
@@ -174,7 +169,7 @@ export default function BuybackTab() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {record.burnAmount} 枚 $奇点量化
+                      {record.burnAmount} 枚 $虾交易
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {record.time}

@@ -10,9 +10,16 @@ import { returnData } from "@/lib/data";
 interface ReturnRecordRow {
   id: string;
   time: string;
-  endTime: string;
   returnRate: number;
   pnl: number;
+}
+
+interface PublicSettingsResponse {
+  weeklyReturn?: string;
+  monthlyReturn?: string;
+  totalReturn?: string;
+  winRate?: string;
+  maxDrawdown?: string;
 }
 
 function toTimestamp(time: string): number {
@@ -49,7 +56,6 @@ function normalizeReturnRows(payload: unknown): ReturnRecordRow[] {
       const raw = item as {
         id?: unknown;
         time?: unknown;
-        endTime?: unknown;
         returnRate?: unknown;
         pnl?: unknown;
       };
@@ -58,12 +64,9 @@ function normalizeReturnRows(payload: unknown): ReturnRecordRow[] {
         return null;
       }
 
-      const endTime = typeof raw.endTime === "string" ? raw.endTime : "";
-
       return {
         id: String(raw.id ?? `return-${index}`),
         time: raw.time,
-        endTime,
         returnRate: parseDecimal(raw.returnRate),
         pnl: parseDecimal(raw.pnl),
       };
@@ -100,6 +103,13 @@ function formatSignedDollar(value: number, maxDigits = 4): string {
 
 export default function ReturnsTab() {
   const [records, setRecords] = useState<ReturnRecordRow[]>([]);
+  const [metrics, setMetrics] = useState(() => ({
+    weekly: returnData.weekly,
+    monthly: returnData.monthly,
+    total: returnData.total,
+    winRate: returnData.winRate,
+    maxDrawdown: returnData.maxDrawdown,
+  }));
   const totalPnl = records.reduce((sum, record) => sum + record.pnl, 0);
 
   useEffect(() => {
@@ -124,7 +134,33 @@ export default function ReturnsTab() {
       }
     }
 
+    async function loadPublicSettings() {
+      try {
+        const response = await fetch("/api/config");
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as PublicSettingsResponse;
+
+        if (isDisposed) {
+          return;
+        }
+
+        setMetrics(previous => ({
+          weekly: payload.weeklyReturn?.trim() || previous.weekly,
+          monthly: payload.monthlyReturn?.trim() || previous.monthly,
+          total: payload.totalReturn?.trim() || previous.total,
+          winRate: payload.winRate?.trim() || previous.winRate,
+          maxDrawdown: payload.maxDrawdown?.trim() || previous.maxDrawdown,
+        }));
+      } catch {
+        // Keep fallback card metrics when request fails.
+      }
+    }
+
     void loadReturnRecords();
+    void loadPublicSettings();
 
     return () => {
       isDisposed = true;
@@ -142,21 +178,21 @@ export default function ReturnsTab() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <DataCard
           label="周收益率"
-          value={returnData.weekly}
+          value={metrics.weekly}
           icon="TrendingUp"
           color="emerald"
           delay={0}
         />
         <DataCard
           label="月收益率"
-          value={returnData.monthly}
+          value={metrics.monthly}
           icon="TrendingUp"
           color="amber"
           delay={0.05}
         />
         <DataCard
           label="累计收益率"
-          value={returnData.total}
+          value={metrics.total}
           icon="TrendingUp"
           color="blue"
           delay={0.1}
@@ -167,14 +203,14 @@ export default function ReturnsTab() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <DataCard
           label="胜率"
-          value={returnData.winRate}
+          value={metrics.winRate}
           icon="Activity"
           color="emerald"
           delay={0.15}
         />
         <DataCard
           label="最大回撤"
-          value={returnData.maxDrawdown}
+          value={metrics.maxDrawdown}
           icon="TrendingDown"
           color="red"
           delay={0.2}
@@ -208,12 +244,7 @@ export default function ReturnsTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/[0.06] text-muted-foreground">
-                  <th className="text-left font-medium px-4 py-2.5">
-                    开始时间
-                  </th>
-                  <th className="text-left font-medium px-4 py-2.5">
-                    结束时间
-                  </th>
+                  <th className="text-left font-medium px-4 py-2.5">时间</th>
                   <th className="text-right font-medium px-4 py-2.5">收益率</th>
                   <th className="text-right font-medium px-4 py-2.5">盈亏</th>
                 </tr>
@@ -229,9 +260,6 @@ export default function ReturnsTab() {
                   >
                     <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
                       {record.time}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
-                      {record.endTime || "--"}
                     </td>
                     <td
                       className={`px-4 py-2.5 text-right font-mono ${

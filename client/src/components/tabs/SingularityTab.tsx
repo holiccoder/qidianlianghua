@@ -1,7 +1,7 @@
 /**
  * SingularityTab - 奇点页面
  * 布局顺序：
- * 1. 社区介绍卡片（奇点量化 AI自动交易实验室）
+ * 1. 社区介绍卡片（虾交易 AI自动交易实验室）
  * 2. 税收分配 + 合约收益分配结构
  * 3. 核心数据卡片
  * 4. 社区重点
@@ -17,6 +17,7 @@ import {
   communityHighlights,
   walletAddresses,
   walletBnbBalances,
+  updateDestroyedFallback,
 } from "@/lib/data";
 import { Copy, RefreshCw, Eye, Bot, Shield } from "lucide-react";
 import { toast } from "sonner";
@@ -35,8 +36,9 @@ interface TokenMetricsResponse {
   currentPriceUsd?: string;
   marketCapUsd?: string;
   burnedTotal?: string;
+  taxWalletBalance?: string;
   buybackWalletBalance?: string;
-  updatedAt?: string;
+  buybackBurnWalletBalance?: string;
 }
 
 interface PublicSettingsResponse {
@@ -56,21 +58,6 @@ interface PublicSettingsResponse {
 
 const TOKEN_METRICS_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-function formatUpdateTime(value?: string): string {
-  if (!value) {
-    return "--";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "--";
-  }
-
-  const pad = (num: number) => String(num).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
-
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text);
   toast.success("已复制到剪贴板");
@@ -81,20 +68,18 @@ function WalletRow({
   middleValue,
   index,
   endValue,
-  updatedAt,
   copyValue,
 }: {
   label: string;
   middleValue: string;
   index: number;
   endValue: string;
-  updatedAt: string;
   copyValue?: string;
 }) {
   const valueToCopy = copyValue || middleValue || endValue;
 
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-2 py-3 border-b border-white/[0.04] last:border-0">
+    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 py-3 border-b border-white/[0.04] last:border-0">
       <div className="flex items-center gap-2 min-w-0">
         <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 text-[10px] font-mono text-emerald-300">
           {String(index).padStart(2, "0")}
@@ -104,11 +89,11 @@ function WalletRow({
         </span>
       </div>
 
-      <span className="px-2 text-sm font-mono text-foreground text-center break-all leading-5">
+      <span className="px-2 text-xs sm:text-sm font-mono text-foreground text-left break-all leading-5 tracking-[0.03em]">
         {middleValue}
       </span>
 
-      <span className="text-xs font-mono text-amber-300 whitespace-nowrap">
+      <span className="text-lg font-mono font-semibold text-amber-300 whitespace-nowrap">
         {endValue}
       </span>
 
@@ -118,10 +103,6 @@ function WalletRow({
       >
         <Copy className="w-3.5 h-3.5" />
       </button>
-
-      <span className="text-[11px] font-mono text-muted-foreground whitespace-nowrap">
-        {updatedAt}
-      </span>
     </div>
   );
 }
@@ -170,7 +151,9 @@ export default function SingularityTab() {
     currentPrice: overviewData.currentPrice,
     marketCap: overviewData.marketCap,
     destroyed: overviewData.destroyed,
+    taxWalletBalance: walletBnbBalances.taxWallet,
     buybackWalletBalance: overviewData.buybackWalletBalance,
+    buybackBurnWalletBalance: walletBnbBalances.buybackBurnWallet,
     taxWalletAddress: walletAddresses.taxWallet,
     buybackWalletAddress: walletAddresses.buybackWallet,
     buybackBurnWalletAddress: walletAddresses.buybackBurnWallet,
@@ -183,7 +166,6 @@ export default function SingularityTab() {
     weeklyReturn: overviewData.weeklyReturn,
     donationTotal: overviewData.donationTotal,
     donationTarget: overviewData.donationTarget,
-    walletUpdatedAt: formatUpdateTime(new Date().toISOString()),
   }));
 
   useEffect(() => {
@@ -204,16 +186,24 @@ export default function SingularityTab() {
           return;
         }
 
+        const latestBurnedTotal = payload.burnedTotal?.trim();
+
+        if (latestBurnedTotal) {
+          updateDestroyedFallback(latestBurnedTotal);
+        }
+
         setLiveOverview(previous => ({
           ...previous,
           currentPrice: payload.currentPriceUsd || previous.currentPrice,
           marketCap: payload.marketCapUsd || previous.marketCap,
-          destroyed: payload.burnedTotal || previous.destroyed,
+          destroyed: latestBurnedTotal || previous.destroyed,
+          taxWalletBalance:
+            payload.taxWalletBalance || previous.taxWalletBalance,
           buybackWalletBalance:
             payload.buybackWalletBalance || previous.buybackWalletBalance,
-          walletUpdatedAt: payload.updatedAt
-            ? formatUpdateTime(payload.updatedAt)
-            : previous.walletUpdatedAt,
+          buybackBurnWalletBalance:
+            payload.buybackBurnWalletBalance ||
+            previous.buybackBurnWalletBalance,
         }));
       } catch {
         // Keep fallback values when request fails.
@@ -311,17 +301,20 @@ export default function SingularityTab() {
     {
       label: "税收钱包地址",
       middleValue: liveOverview.taxWalletAddress,
-      endValue: walletBnbBalances.taxWallet,
+      endValue: liveOverview.taxWalletBalance,
+      copyValue: liveOverview.taxWalletAddress,
     },
     {
       label: "回购钱包地址",
       middleValue: liveOverview.buybackWalletAddress,
-      endValue: walletBnbBalances.buybackWallet,
+      endValue: liveOverview.buybackWalletBalance,
+      copyValue: liveOverview.buybackWalletAddress,
     },
     {
       label: "回购销毁执行钱包地址",
       middleValue: liveOverview.buybackBurnWalletAddress,
-      endValue: walletBnbBalances.buybackBurnWallet,
+      endValue: liveOverview.buybackBurnWalletBalance,
+      copyValue: liveOverview.buybackBurnWalletAddress,
     },
     {
       label: "币安总钱包余额",
@@ -367,9 +360,7 @@ export default function SingularityTab() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#111827] via-[#111827]/70 to-transparent" />
           <div className="absolute bottom-5 left-5 right-5">
-            <h2 className="text-2xl font-bold text-foreground mb-1">
-              奇点量化
-            </h2>
+            <h2 className="text-2xl font-bold text-foreground mb-1">虾交易</h2>
             <p className="text-sm text-emerald-400 font-medium">
               AI 自动交易实验室
             </p>
@@ -377,7 +368,7 @@ export default function SingularityTab() {
         </div>
         <div className="p-5 space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>
-            <strong className="text-foreground">奇点量化 社区</strong> 是一个 AI
+            <strong className="text-foreground">虾交易 社区</strong> 是一个 AI
             自动交易实验社区。
           </p>
           <p>
@@ -393,7 +384,7 @@ export default function SingularityTab() {
           <p>
             随着 AI 交易规模扩大，大额合约交易也有机会在{" "}
             <strong className="text-foreground">币安广场</strong> 获得更多曝光，
-            进一步提升 $奇点量化 的社区影响力。
+            进一步提升 $虾交易 的社区影响力。
           </p>
           <p>
             我们希望通过{" "}
@@ -446,7 +437,7 @@ export default function SingularityTab() {
         <DataCard
           label="当前价格"
           value={liveOverview.currentPrice}
-          subtitle="基准价格 $0.00025000"
+          subtitle="基准价格"
           icon="DollarSign"
           color="emerald"
           delay={0.15}
@@ -454,7 +445,7 @@ export default function SingularityTab() {
         <DataCard
           label="市值"
           value={liveOverview.marketCap}
-          subtitle="距离高点 -15.2%"
+          subtitle="流通市值"
           icon="BarChart3"
           color="amber"
           delay={0.2}
@@ -462,7 +453,7 @@ export default function SingularityTab() {
         <DataCard
           label="已销毁"
           value={liveOverview.destroyed}
-          subtitle="燃烧次数 1,247"
+          subtitle="总发行10亿枚"
           icon="Flame"
           color="red"
           delay={0.25}
@@ -470,7 +461,7 @@ export default function SingularityTab() {
         <DataCard
           label="回购钱包余额"
           value={liveOverview.buybackWalletBalance}
-          subtitle={`总余额 ≈ ${liveOverview.totalAssets}`}
+          subtitle="有序回购"
           icon="Wallet"
           color="blue"
           delay={0.3}
@@ -616,7 +607,7 @@ export default function SingularityTab() {
               label={row.label}
               middleValue={row.middleValue}
               endValue={row.endValue}
-              updatedAt={liveOverview.walletUpdatedAt}
+              copyValue={row.copyValue}
               index={index + 1}
             />
           ))}

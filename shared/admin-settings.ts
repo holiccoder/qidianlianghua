@@ -1,17 +1,20 @@
 import crypto from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import fs from "node:fs";
+import path from "node:path";
 
 export const ADMIN_SESSION_COOKIE_NAME = "sq_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
 
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "admin123456";
+const PUBLIC_SETTINGS_FILE_NAME = "admin-settings.json";
 
 export interface AdminSettings {
   socialTelegramUrl: string;
   socialXUrl: string;
   socialBinanceUrl: string;
+  tokenContractAddress: string;
   taxWalletAddress: string;
   buybackWalletAddress: string;
   buybackBurnWalletAddress: string;
@@ -22,6 +25,10 @@ export interface AdminSettings {
   followers: string;
   aum: string;
   weeklyReturn: string;
+  monthlyReturn: string;
+  totalReturn: string;
+  winRate: string;
+  maxDrawdown: string;
   weeklyExpense: string;
   donationTotal: string;
   donationTarget: string;
@@ -33,6 +40,27 @@ interface SettingMeta {
   key: SettingKey;
   envKey: string;
   defaultValue: string;
+  allowEmpty?: boolean;
+  normalize?: (value: string) => string;
+}
+
+const NUMERIC_TEXT_PATTERN = /^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/;
+
+function normalizeDollarAmount(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed.startsWith("$") || !NUMERIC_TEXT_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `$${trimmed}`;
+}
+
+function normalizeSettingValue(item: SettingMeta, value: string): string {
+  return item.normalize ? item.normalize(value) : value;
 }
 
 const SETTING_META: SettingMeta[] = [
@@ -50,6 +78,12 @@ const SETTING_META: SettingMeta[] = [
     key: "socialBinanceUrl",
     envKey: "VITE_SOCIAL_BINANCE_URL",
     defaultValue: "https://www.binance.com/zh-CN/square",
+  },
+  {
+    key: "tokenContractAddress",
+    envKey: "VITE_TOKEN_CONTRACT_ADDRESS",
+    defaultValue: "0x1094814045fe0c29023df28698ca539296cf7777",
+    allowEmpty: true,
   },
   {
     key: "taxWalletAddress",
@@ -102,6 +136,26 @@ const SETTING_META: SettingMeta[] = [
     defaultValue: "+3.6%",
   },
   {
+    key: "monthlyReturn",
+    envKey: "VITE_MONTHLY_RETURN",
+    defaultValue: "+12.8%",
+  },
+  {
+    key: "totalReturn",
+    envKey: "VITE_TOTAL_RETURN",
+    defaultValue: "+45.2%",
+  },
+  {
+    key: "winRate",
+    envKey: "VITE_WIN_RATE",
+    defaultValue: "72.5%",
+  },
+  {
+    key: "maxDrawdown",
+    envKey: "VITE_MAX_DRAWDOWN",
+    defaultValue: "-8.3%",
+  },
+  {
     key: "weeklyExpense",
     envKey: "VITE_WEEKLY_EXPENSE",
     defaultValue: "$4,250",
@@ -110,11 +164,12 @@ const SETTING_META: SettingMeta[] = [
     key: "donationTotal",
     envKey: "VITE_DONATION_TOTAL",
     defaultValue: "$2,580",
+    normalize: normalizeDollarAmount,
   },
   {
     key: "donationTarget",
     envKey: "VITE_DONATION_TARGET",
-    defaultValue: "方鸭社区",
+    defaultValue: "方鸭自闭症慈善社区",
   },
 ];
 
@@ -158,53 +213,54 @@ function parseEnvMap(envFilePath: string): Record<string, string> {
   return result;
 }
 
-function shouldQuote(value: string): boolean {
-  return /\s/.test(value) || value.includes("#") || value.includes("=");
+function getPublicSettingsFilePath(envFilePath: string): string {
+  return path.resolve(
+    path.dirname(envFilePath),
+    "data",
+    PUBLIC_SETTINGS_FILE_NAME
+  );
 }
 
-function formatEnvValue(value: string): string {
-  if (!shouldQuote(value)) {
-    return value;
+function parseStoredSettings(
+  settingsFilePath: string
+): Partial<Record<SettingKey, string>> {
+  if (!fs.existsSync(settingsFilePath)) {
+    return {};
   }
-  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+
+  try {
+    const raw = fs.readFileSync(settingsFilePath, "utf-8");
+    const parsed = JSON.parse(raw);
+
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+
+    const result: Partial<Record<SettingKey, string>> = {};
+
+    for (const item of SETTING_META) {
+      const value = (parsed as Record<string, unknown>)[item.key];
+      if (typeof value === "string") {
+        result[item.key] = normalizeSettingValue(item, value.trim());
+      }
+    }
+
+    return result;
+  } catch {
+    return {};
+  }
 }
 
-function setEnvValues(
-  envFilePath: string,
-  values: Record<string, string>
+function writeStoredSettings(
+  settingsFilePath: string,
+  settings: AdminSettings
 ): void {
-  const exists = fs.existsSync(envFilePath);
-  const original = exists ? fs.readFileSync(envFilePath, "utf-8") : "";
-  const lineBreak = original.includes("\r\n") ? "\r\n" : "\n";
-
-  const lines = (exists ? original : "").split(/\r?\n/);
-  const seen = new Set<string>();
-
-  const updatedLines = lines.map(line => {
-    const separatorIndex = line.indexOf("=");
-    if (separatorIndex <= 0) {
-      return line;
-    }
-
-    const key = line.slice(0, separatorIndex).trim();
-    const nextValue = values[key];
-
-    if (typeof nextValue !== "string") {
-      return line;
-    }
-
-    seen.add(key);
-    return `${key}=${formatEnvValue(nextValue)}`;
-  });
-
-  for (const [key, value] of Object.entries(values)) {
-    if (!seen.has(key)) {
-      updatedLines.push(`${key}=${formatEnvValue(value)}`);
-    }
-  }
-
-  const result = updatedLines.join(lineBreak).replace(/[\r\n]*$/, lineBreak);
-  fs.writeFileSync(envFilePath, result, "utf-8");
+  fs.mkdirSync(path.dirname(settingsFilePath), { recursive: true });
+  fs.writeFileSync(
+    settingsFilePath,
+    `${JSON.stringify(settings, null, 2)}\n`,
+    "utf-8"
+  );
 }
 
 function readSettingValue(
@@ -251,11 +307,26 @@ export function readEnvValue(
 
 export function getPublicSettings(envFilePath: string): AdminSettings {
   const envMap = parseEnvMap(envFilePath);
+  const storedSettings = parseStoredSettings(
+    getPublicSettingsFilePath(envFilePath)
+  );
 
   const result = {} as AdminSettings;
 
   for (const item of SETTING_META) {
-    result[item.key] = readSettingValue(envMap, item.envKey, item.defaultValue);
+    const storedValue = storedSettings[item.key];
+    if (
+      storedValue !== undefined &&
+      (item.allowEmpty || storedValue.length > 0)
+    ) {
+      result[item.key] = normalizeSettingValue(item, storedValue);
+      continue;
+    }
+
+    result[item.key] = normalizeSettingValue(
+      item,
+      readSettingValue(envMap, item.envKey, item.defaultValue)
+    );
   }
 
   return result;
@@ -265,22 +336,28 @@ export function updatePublicSettings(
   envFilePath: string,
   updates: Partial<AdminSettings>
 ): AdminSettings {
-  const envUpdates: Record<string, string> = {};
+  const nextSettings: AdminSettings = { ...getPublicSettings(envFilePath) };
+  let hasUpdates = false;
 
   for (const item of SETTING_META) {
     if (!(item.key in updates)) {
       continue;
     }
 
-    const nextValue = sanitizeSettingInput(updates[item.key]);
-    envUpdates[item.envKey] = nextValue || item.defaultValue;
+    const nextValue = normalizeSettingValue(
+      item,
+      sanitizeSettingInput(updates[item.key])
+    );
+    nextSettings[item.key] =
+      nextValue || (item.allowEmpty ? "" : item.defaultValue);
+    hasUpdates = true;
   }
 
-  if (Object.keys(envUpdates).length > 0) {
-    setEnvValues(envFilePath, envUpdates);
+  if (hasUpdates) {
+    writeStoredSettings(getPublicSettingsFilePath(envFilePath), nextSettings);
   }
 
-  return getPublicSettings(envFilePath);
+  return nextSettings;
 }
 
 export function getAdminCredentials(envFilePath: string): {

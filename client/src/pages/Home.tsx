@@ -1,5 +1,5 @@
 /**
- * Home - 奇点量化 AI交易实验室 主页面
+ * Home - 虾交易 AI交易实验室 主页面
  * 设计风格：量化交易控制台（Quant Trading Console）
  * - 深海蓝黑背景，玻璃拟态卡片
  * - 翡翠绿/琥珀金/天蓝/珊瑚红颜色编码
@@ -11,6 +11,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import Header from "@/components/Header";
 import ContractAddress from "@/components/ContractAddress";
 import SingularityTab from "@/components/tabs/SingularityTab";
+import TeamTab from "@/components/tabs/TeamTab";
 import TradesTab from "@/components/tabs/TradesTab";
 import ReturnsTab from "@/components/tabs/ReturnsTab";
 import BuybackTab from "@/components/tabs/BuybackTab";
@@ -24,6 +25,7 @@ const HERO_BG =
 
 const tabComponents: Record<string, React.ComponentType> = {
   singularity: SingularityTab,
+  team: TeamTab,
   trades: TradesTab,
   returns: ReturnsTab,
   buyback: BuybackTab,
@@ -82,29 +84,7 @@ export default function Home() {
         {/* Footer */}
         <footer className="relative z-10 border-t border-white/[0.06]">
           <div className="container py-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="text-emerald-400"
-                  >
-                    <path
-                      d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  奇点量化 AI交易实验室
-                </span>
-              </div>
+            <div className="flex items-center justify-center">
               <p className="text-xs text-muted-foreground">
                 AI 交易 · 社区增长 · 公益行动
               </p>

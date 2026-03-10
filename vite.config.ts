@@ -19,7 +19,8 @@ import {
   updatePublicSettings,
 } from "./shared/admin-settings";
 import {
-  DEFAULT_CONTRACT_ADDRESS,
+  createUnavailableTokenMetrics,
+  fetchWalletBalanceMetrics,
   fetchTokenMetrics,
 } from "./shared/token-metrics";
 import {
@@ -243,12 +244,75 @@ function vitePluginStripGoogleFonts(): Plugin {
   };
 }
 
+function isEvmAddress(value?: string): value is string {
+  const normalized = value?.trim();
+  return Boolean(normalized && /^0x[a-fA-F0-9]{40}$/.test(normalized));
+}
+
+function getTokenMetricsConfig(
+  envFilePath: string,
+  envMap: Record<string, string>
+): {
+  contractAddress?: string;
+  taxWalletAddress?: string;
+  buybackWalletAddress?: string;
+  buybackBurnWalletAddress?: string;
+  proxyUrl?: string;
+} {
+  const settings = getPublicSettings(envFilePath);
+
+  const contractAddress = isEvmAddress(settings.tokenContractAddress)
+    ? settings.tokenContractAddress.trim()
+    : undefined;
+
+  const taxWalletAddress = isEvmAddress(settings.taxWalletAddress)
+    ? settings.taxWalletAddress.trim()
+    : isEvmAddress(envMap.VITE_TAX_WALLET_ADDRESS)
+      ? envMap.VITE_TAX_WALLET_ADDRESS.trim()
+      : undefined;
+
+  const buybackWalletAddress = isEvmAddress(settings.buybackWalletAddress)
+    ? settings.buybackWalletAddress.trim()
+    : isEvmAddress(
+          envMap.BUYBACK_WALLET_ADDRESS || envMap.VITE_BUYBACK_WALLET_ADDRESS
+        )
+      ? (
+          envMap.BUYBACK_WALLET_ADDRESS || envMap.VITE_BUYBACK_WALLET_ADDRESS
+        ).trim()
+      : undefined;
+
+  const buybackBurnWalletAddress = isEvmAddress(
+    settings.buybackBurnWalletAddress
+  )
+    ? settings.buybackBurnWalletAddress.trim()
+    : isEvmAddress(envMap.VITE_BUYBACK_BURN_WALLET_ADDRESS)
+      ? envMap.VITE_BUYBACK_BURN_WALLET_ADDRESS.trim()
+      : undefined;
+
+  const proxyUrl =
+    envMap.TOKEN_METRICS_PROXY_URL ||
+    envMap.HTTPS_PROXY ||
+    envMap.HTTP_PROXY ||
+    process.env.TOKEN_METRICS_PROXY_URL ||
+    process.env.HTTPS_PROXY ||
+    process.env.HTTP_PROXY;
+
+  return {
+    contractAddress,
+    taxWalletAddress,
+    buybackWalletAddress,
+    buybackBurnWalletAddress,
+    proxyUrl: proxyUrl?.trim() || undefined,
+  };
+}
+
 function vitePluginTokenMetrics(
-  contractAddress: string,
-  buybackWalletAddress?: string
+  envFilePath: string,
+  envMap: Record<string, string>
 ): Plugin {
   let cached:
     | {
+        cacheKey: string;
         expiresAt: number;
         data: Awaited<ReturnType<typeof fetchTokenMetrics>>;
       }
@@ -265,13 +329,49 @@ function vitePluginTokenMetrics(
 
         void (async () => {
           try {
-            if (!cached || cached.expiresAt <= Date.now()) {
-              const data = await fetchTokenMetrics(
-                contractAddress,
-                undefined,
-                buybackWalletAddress
-              );
+            const config = getTokenMetricsConfig(envFilePath, envMap);
+            const cacheKey = [
+              config.contractAddress,
+              config.taxWalletAddress || "",
+              config.buybackWalletAddress || "",
+              config.buybackBurnWalletAddress || "",
+              config.proxyUrl || "",
+            ].join("|");
+
+            if (
+              !cached ||
+              cached.cacheKey !== cacheKey ||
+              cached.expiresAt <= Date.now()
+            ) {
+              let data: Awaited<ReturnType<typeof fetchTokenMetrics>>;
+
+              if (config.contractAddress) {
+                data = await fetchTokenMetrics(config.contractAddress, {
+                  taxWalletAddress: config.taxWalletAddress,
+                  buybackWalletAddress: config.buybackWalletAddress,
+                  buybackBurnWalletAddress: config.buybackBurnWalletAddress,
+                  proxyUrl: config.proxyUrl,
+                });
+              } else {
+                const walletBalanceMetrics = await fetchWalletBalanceMetrics({
+                  taxWalletAddress: config.taxWalletAddress,
+                  buybackWalletAddress: config.buybackWalletAddress,
+                  buybackBurnWalletAddress: config.buybackBurnWalletAddress,
+                  proxyUrl: config.proxyUrl,
+                });
+                const unavailableMetrics = createUnavailableTokenMetrics();
+                data = {
+                  ...unavailableMetrics,
+                  ...walletBalanceMetrics,
+                  buybackWalletAddress:
+                    config.buybackWalletAddress ||
+                    unavailableMetrics.buybackWalletAddress,
+                  updatedAt: new Date().toISOString(),
+                };
+              }
+
               cached = {
+                cacheKey,
                 data,
                 expiresAt: Date.now() + TOKEN_METRICS_CACHE_TTL_MS,
               };
@@ -985,14 +1085,6 @@ function vitePluginAdminSettingsApi(envFilePath: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, import.meta.dirname, "");
 
-  const tokenContractAddress =
-    env.TOKEN_CONTRACT_ADDRESS ||
-    env.VITE_TOKEN_CONTRACT_ADDRESS ||
-    DEFAULT_CONTRACT_ADDRESS;
-
-  const buybackWalletAddress =
-    env.BUYBACK_WALLET_ADDRESS || env.VITE_BUYBACK_WALLET_ADDRESS;
-
   const plugins = [
     vitePluginStripGoogleFonts(),
     react(),
@@ -1000,7 +1092,7 @@ export default defineConfig(({ mode }) => {
     jsxLocPlugin(),
     vitePluginManusRuntime(),
     vitePluginAdminSettingsApi(ENV_FILE_PATH),
-    vitePluginTokenMetrics(tokenContractAddress, buybackWalletAddress),
+    vitePluginTokenMetrics(ENV_FILE_PATH, env),
     vitePluginManusDebugCollector(),
   ];
 

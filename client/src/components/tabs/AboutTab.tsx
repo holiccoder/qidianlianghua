@@ -227,9 +227,7 @@ export default function AboutTab() {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#111827] via-[#111827]/70 to-transparent" />
           <div className="absolute bottom-5 left-5 right-5">
-            <h2 className="text-2xl font-bold text-foreground mb-1">
-              奇点量化
-            </h2>
+            <h2 className="text-2xl font-bold text-foreground mb-1">虾交易</h2>
             <p className="text-sm text-emerald-400 font-medium">
               AI 自动交易实验室
             </p>
@@ -237,7 +235,7 @@ export default function AboutTab() {
         </div>
         <div className="p-5 space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>
-            <strong className="text-foreground">奇点量化 社区</strong> 是一个 AI
+            <strong className="text-foreground">虾交易 社区</strong> 是一个 AI
             自动交易实验社区。
           </p>
           <p>
@@ -253,7 +251,7 @@ export default function AboutTab() {
           <p>
             随着 AI 交易规模扩大，大额合约交易也有机会在{" "}
             <strong className="text-foreground">币安广场</strong> 获得更多曝光，
-            进一步提升 $奇点量化 的社区影响力。
+            进一步提升 $虾交易 的社区影响力。
           </p>
           <p>
             我们希望通过{" "}
@@ -367,7 +365,7 @@ export default function AboutTab() {
           <div className="absolute inset-0 flex items-center px-6">
             <div>
               <h3 className="text-lg font-bold text-foreground mb-1">
-                加入奇点量化社区
+                加入虾交易社区
               </h3>
               <p className="text-sm text-muted-foreground">
                 AI 交易 + 社区增长 + 公益行动

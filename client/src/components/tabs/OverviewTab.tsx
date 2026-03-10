@@ -40,7 +40,7 @@ export default function OverviewTab() {
         <DataCard
           label="当前价格"
           value={overviewData.currentPrice}
-          subtitle="基准价格 $0.00025000"
+          subtitle="基准价格"
           icon="DollarSign"
           color="emerald"
           delay={0}
@@ -48,7 +48,7 @@ export default function OverviewTab() {
         <DataCard
           label="市值"
           value={overviewData.marketCap}
-          subtitle="距离高点 -15.2%"
+          subtitle="流通市值"
           icon="BarChart3"
           color="amber"
           delay={0.05}
@@ -56,7 +56,7 @@ export default function OverviewTab() {
         <DataCard
           label="已销毁"
           value={overviewData.destroyed}
-          subtitle="燃烧次数 1,247"
+          subtitle="总发行10亿枚"
           icon="Flame"
           color="red"
           delay={0.1}
@@ -64,7 +64,7 @@ export default function OverviewTab() {
         <DataCard
           label="回购钱包余额"
           value={overviewData.buybackWalletBalance}
-          subtitle={`总余额 ≈ ${overviewData.totalAssets}`}
+          subtitle="有序回购"
           icon="Wallet"
           color="blue"
           delay={0.15}

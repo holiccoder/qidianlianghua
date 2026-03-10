@@ -4,6 +4,7 @@ interface AdminSettingsForm {
   socialTelegramUrl: string;
   socialXUrl: string;
   socialBinanceUrl: string;
+  tokenContractAddress: string;
   taxWalletAddress: string;
   buybackWalletAddress: string;
   buybackBurnWalletAddress: string;
@@ -14,6 +15,10 @@ interface AdminSettingsForm {
   followers: string;
   aum: string;
   weeklyReturn: string;
+  monthlyReturn: string;
+  totalReturn: string;
+  winRate: string;
+  maxDrawdown: string;
   weeklyExpense: string;
   donationTotal: string;
   donationTarget: string;
@@ -35,14 +40,12 @@ interface TradeFormState {
 interface ReturnRecord {
   id: string;
   time: string;
-  endTime: string;
   returnRate: number;
   pnl: number;
 }
 
 interface ReturnFormState {
   time: string;
-  endTime: string;
   returnRate: string;
   pnl: string;
 }
@@ -94,6 +97,7 @@ const defaultSettings: AdminSettingsForm = {
   socialTelegramUrl: "https://t.me/your_channel",
   socialXUrl: "https://x.com/your_account",
   socialBinanceUrl: "https://www.binance.com/zh-CN/square",
+  tokenContractAddress: "0x1094814045fe0c29023df28698ca539296cf7777",
   taxWalletAddress: "0x1234...5678abcd...ef90",
   buybackWalletAddress: "0xabcd...1234efgh...5678",
   buybackBurnWalletAddress: "0x5678...abcd1234...ef90",
@@ -104,15 +108,20 @@ const defaultSettings: AdminSettingsForm = {
   followers: "1247",
   aum: "$89,500",
   weeklyReturn: "+3.6%",
+  monthlyReturn: "+12.8%",
+  totalReturn: "+45.2%",
+  winRate: "72.5%",
+  maxDrawdown: "-8.3%",
   weeklyExpense: "$4,250",
   donationTotal: "$2,580",
-  donationTarget: "方鸭社区",
+  donationTarget: "方鸭自闭症慈善社区",
 };
 
 const fields: Array<{ key: keyof AdminSettingsForm; label: string }> = [
   { key: "socialTelegramUrl", label: "Telegram 链接" },
   { key: "socialXUrl", label: "X 链接" },
   { key: "socialBinanceUrl", label: "币安广场链接" },
+  { key: "tokenContractAddress", label: "代币合约地址" },
   { key: "taxWalletAddress", label: "税收钱包地址" },
   { key: "buybackWalletAddress", label: "回购钱包地址" },
   { key: "buybackBurnWalletAddress", label: "回购销毁执行钱包地址" },
@@ -122,6 +131,10 @@ const fields: Array<{ key: keyof AdminSettingsForm; label: string }> = [
   { key: "followers", label: "跟单人数" },
   { key: "aum", label: "资产管理规模" },
   { key: "weeklyReturn", label: "周收益率" },
+  { key: "monthlyReturn", label: "月收益率" },
+  { key: "totalReturn", label: "累计收益率" },
+  { key: "winRate", label: "胜率" },
+  { key: "maxDrawdown", label: "最大回撤" },
   { key: "weeklyExpense", label: "本周总开支" },
   { key: "donationTotal", label: "捐款总金额" },
   { key: "donationTarget", label: "捐助对象" },
@@ -251,7 +264,6 @@ function normalizeReturnRecords(payload: unknown): ReturnRecord[] {
       const raw = item as {
         id?: unknown;
         time?: unknown;
-        endTime?: unknown;
         returnRate?: unknown;
         pnl?: unknown;
       };
@@ -262,12 +274,10 @@ function normalizeReturnRecords(payload: unknown): ReturnRecord[] {
 
       const returnRate = Number(raw.returnRate);
       const pnl = Number(raw.pnl);
-      const endTime = typeof raw.endTime === "string" ? raw.endTime : "";
 
       return {
         id: String(raw.id ?? `return-${index}`),
         time: raw.time,
-        endTime,
         returnRate: Number.isFinite(returnRate) ? returnRate : 0,
         pnl: Number.isFinite(pnl) ? pnl : 0,
       };
@@ -485,14 +495,12 @@ export default function AdminPage() {
   });
   const [returnForm, setReturnForm] = useState<ReturnFormState>({
     time: formatDateInput(new Date()),
-    endTime: formatDateInput(new Date()),
     returnRate: "",
     pnl: "",
   });
   const [editingReturnId, setEditingReturnId] = useState<string | null>(null);
   const [editingReturnForm, setEditingReturnForm] = useState<ReturnFormState>({
     time: "",
-    endTime: "",
     returnRate: "",
     pnl: "",
   });
@@ -830,7 +838,6 @@ export default function AdminPage() {
         credentials: "same-origin",
         body: JSON.stringify({
           time: returnForm.time,
-          endTime: returnForm.endTime,
           returnRate: returnForm.returnRate,
           pnl: returnForm.pnl,
         }),
@@ -854,7 +861,6 @@ export default function AdminPage() {
       setReturnRecords(normalizeReturnRecords(payload));
       setReturnForm({
         time: formatDateInput(new Date()),
-        endTime: formatDateInput(new Date()),
         returnRate: "",
         pnl: "",
       });
@@ -1113,8 +1119,7 @@ export default function AdminPage() {
   function startEditReturn(record: ReturnRecord) {
     setEditingReturnId(record.id);
     setEditingReturnForm({
-      time: toDateInputValue(record.time),
-      endTime: toDateInputValue(record.endTime),
+      time: record.time,
       returnRate: String(record.returnRate),
       pnl: String(record.pnl),
     });
@@ -1124,7 +1129,6 @@ export default function AdminPage() {
     setEditingReturnId(null);
     setEditingReturnForm({
       time: "",
-      endTime: "",
       returnRate: "",
       pnl: "",
     });
@@ -1144,7 +1148,6 @@ export default function AdminPage() {
         credentials: "same-origin",
         body: JSON.stringify({
           time: editingReturnForm.time,
-          endTime: editingReturnForm.endTime,
           returnRate: editingReturnForm.returnRate,
           pnl: editingReturnForm.pnl,
         }),
@@ -1914,13 +1917,13 @@ export default function AdminPage() {
                   className="glass-card p-5 space-y-4"
                 >
                   <h2 className="text-base font-semibold">创建收益率</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-xs text-muted-foreground">
-                        开始时间
+                        时间
                       </label>
                       <input
-                        type="date"
+                        type="text"
                         value={returnForm.time}
                         onChange={event =>
                           setReturnForm(previous => ({
@@ -1929,24 +1932,7 @@ export default function AdminPage() {
                           }))
                         }
                         className="w-full rounded-lg border border-white/[0.12] bg-black/20 px-3 py-2 text-sm outline-none focus:border-emerald-500/40"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs text-muted-foreground">
-                        结束时间
-                      </label>
-                      <input
-                        type="date"
-                        value={returnForm.endTime}
-                        onChange={event =>
-                          setReturnForm(previous => ({
-                            ...previous,
-                            endTime: event.target.value,
-                          }))
-                        }
-                        className="w-full rounded-lg border border-white/[0.12] bg-black/20 px-3 py-2 text-sm outline-none focus:border-emerald-500/40"
+                        placeholder="如 2026-03-02 至 2026-03-08"
                         required
                       />
                     </div>
@@ -2014,10 +2000,7 @@ export default function AdminPage() {
                       <thead>
                         <tr className="border-b border-white/[0.06] text-muted-foreground">
                           <th className="text-left font-medium px-4 py-2.5">
-                            开始时间
-                          </th>
-                          <th className="text-left font-medium px-4 py-2.5">
-                            结束时间
+                            时间
                           </th>
                           <th className="text-right font-medium px-4 py-2.5">
                             收益率
@@ -2042,7 +2025,7 @@ export default function AdminPage() {
                               <td className="px-4 py-2.5">
                                 {isEditing ? (
                                   <input
-                                    type="date"
+                                    type="text"
                                     value={editingReturnForm.time}
                                     onChange={event =>
                                       setEditingReturnForm(previous => ({
@@ -2051,31 +2034,12 @@ export default function AdminPage() {
                                       }))
                                     }
                                     className="w-full rounded-md border border-white/[0.12] bg-black/20 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500/40"
+                                    placeholder="如 2026-03-02 至 2026-03-08"
                                     required
                                   />
                                 ) : (
                                   <span className="font-mono text-xs text-muted-foreground">
                                     {record.time}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5">
-                                {isEditing ? (
-                                  <input
-                                    type="date"
-                                    value={editingReturnForm.endTime}
-                                    onChange={event =>
-                                      setEditingReturnForm(previous => ({
-                                        ...previous,
-                                        endTime: event.target.value,
-                                      }))
-                                    }
-                                    className="w-full rounded-md border border-white/[0.12] bg-black/20 px-2.5 py-1.5 text-sm outline-none focus:border-emerald-500/40"
-                                    required
-                                  />
-                                ) : (
-                                  <span className="font-mono text-xs text-muted-foreground">
-                                    {record.endTime}
                                   </span>
                                 )}
                               </td>

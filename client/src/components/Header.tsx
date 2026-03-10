@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Zap,
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -30,6 +31,7 @@ const iconMap: Record<string, React.ElementType> = {
   Heart,
   Info,
   Zap,
+  Users,
 };
 
 interface Tab {
@@ -152,13 +154,13 @@ export default function Header({ tabs, activeTab, onTabChange }: HeaderProps) {
               <div className="w-9 h-9 rounded-lg overflow-hidden border border-emerald-500/30 bg-emerald-500/10">
                 <img
                   src="/logo.png"
-                  alt="奇点量化 Logo"
+                  alt="虾交易 Logo"
                   className="w-full h-full object-cover"
                 />
               </div>
               <div className="leading-tight">
                 <h1 className="text-sm font-bold text-foreground tracking-tight">
-                  奇点量化
+                  虾交易
                 </h1>
                 <p className="text-[10px] text-muted-foreground">
                   AI交易实验室

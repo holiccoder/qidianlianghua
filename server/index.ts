@@ -17,7 +17,8 @@ import {
   updatePublicSettings,
 } from "../shared/admin-settings";
 import {
-  DEFAULT_CONTRACT_ADDRESS,
+  createUnavailableTokenMetrics,
+  fetchWalletBalanceMetrics,
   fetchTokenMetrics,
 } from "../shared/token-metrics";
 import {
@@ -92,27 +93,76 @@ const DONATION_RECORDS_FILE_PATH = path.resolve(
   "donation-records.json"
 );
 
-function getContractAddress(): string {
-  return (
-    readEnvValue(ENV_FILE_PATH, "TOKEN_CONTRACT_ADDRESS") ||
-    readEnvValue(ENV_FILE_PATH, "VITE_TOKEN_CONTRACT_ADDRESS") ||
-    DEFAULT_CONTRACT_ADDRESS
-  );
+function isEvmAddress(value?: string): value is string {
+  const normalized = value?.trim();
+  return Boolean(normalized && /^0x[a-fA-F0-9]{40}$/.test(normalized));
 }
 
-function getBuybackWalletAddress(): string | undefined {
-  return (
-    readEnvValue(ENV_FILE_PATH, "BUYBACK_WALLET_ADDRESS") ||
-    readEnvValue(ENV_FILE_PATH, "VITE_BUYBACK_WALLET_ADDRESS")
+function getTokenMetricsConfig(): {
+  contractAddress?: string;
+  taxWalletAddress?: string;
+  buybackWalletAddress?: string;
+  buybackBurnWalletAddress?: string;
+  proxyUrl?: string;
+} {
+  const settings = getPublicSettings(ENV_FILE_PATH);
+
+  const contractAddress = isEvmAddress(settings.tokenContractAddress)
+    ? settings.tokenContractAddress.trim()
+    : undefined;
+
+  const envTaxWalletAddress = readEnvValue(
+    ENV_FILE_PATH,
+    "VITE_TAX_WALLET_ADDRESS"
   );
+
+  const taxWalletAddress = isEvmAddress(settings.taxWalletAddress)
+    ? settings.taxWalletAddress.trim()
+    : isEvmAddress(envTaxWalletAddress)
+      ? envTaxWalletAddress.trim()
+      : undefined;
+
+  const envBuybackWalletAddress =
+    readEnvValue(ENV_FILE_PATH, "BUYBACK_WALLET_ADDRESS") ||
+    readEnvValue(ENV_FILE_PATH, "VITE_BUYBACK_WALLET_ADDRESS");
+
+  const buybackWalletAddress = isEvmAddress(settings.buybackWalletAddress)
+    ? settings.buybackWalletAddress.trim()
+    : isEvmAddress(envBuybackWalletAddress)
+      ? envBuybackWalletAddress.trim()
+      : undefined;
+
+  const envBuybackBurnWalletAddress = readEnvValue(
+    ENV_FILE_PATH,
+    "VITE_BUYBACK_BURN_WALLET_ADDRESS"
+  );
+
+  const buybackBurnWalletAddress = isEvmAddress(
+    settings.buybackBurnWalletAddress
+  )
+    ? settings.buybackBurnWalletAddress.trim()
+    : isEvmAddress(envBuybackBurnWalletAddress)
+      ? envBuybackBurnWalletAddress.trim()
+      : undefined;
+
+  const proxyUrl =
+    readEnvValue(ENV_FILE_PATH, "TOKEN_METRICS_PROXY_URL") ||
+    readEnvValue(ENV_FILE_PATH, "HTTPS_PROXY") ||
+    readEnvValue(ENV_FILE_PATH, "HTTP_PROXY");
+
+  return {
+    contractAddress,
+    taxWalletAddress,
+    buybackWalletAddress,
+    buybackBurnWalletAddress,
+    proxyUrl: proxyUrl?.trim() || undefined,
+  };
 }
 
 async function startServer() {
   const app = express();
   const server = createServer(app);
   const adminSessions = createSessionStore();
-  const contractAddress = getContractAddress();
-  const buybackWalletAddress = getBuybackWalletAddress();
 
   ensureTradeRecordsFile(TRADE_RECORDS_FILE_PATH);
   ensureReturnRecordsFile(RETURN_RECORDS_FILE_PATH);
@@ -122,6 +172,7 @@ async function startServer() {
 
   let metricsCache:
     | {
+        cacheKey: string;
         expiresAt: number;
         data: Awaited<ReturnType<typeof fetchTokenMetrics>>;
       }
@@ -129,13 +180,49 @@ async function startServer() {
 
   app.get("/api/token-metrics", async (_req, res) => {
     try {
-      if (!metricsCache || metricsCache.expiresAt <= Date.now()) {
-        const data = await fetchTokenMetrics(
-          contractAddress,
-          undefined,
-          buybackWalletAddress
-        );
+      const config = getTokenMetricsConfig();
+      const cacheKey = [
+        config.contractAddress,
+        config.taxWalletAddress || "",
+        config.buybackWalletAddress || "",
+        config.buybackBurnWalletAddress || "",
+        config.proxyUrl || "",
+      ].join("|");
+
+      if (
+        !metricsCache ||
+        metricsCache.cacheKey !== cacheKey ||
+        metricsCache.expiresAt <= Date.now()
+      ) {
+        let data: Awaited<ReturnType<typeof fetchTokenMetrics>>;
+
+        if (config.contractAddress) {
+          data = await fetchTokenMetrics(config.contractAddress, {
+            taxWalletAddress: config.taxWalletAddress,
+            buybackWalletAddress: config.buybackWalletAddress,
+            buybackBurnWalletAddress: config.buybackBurnWalletAddress,
+            proxyUrl: config.proxyUrl,
+          });
+        } else {
+          const walletBalanceMetrics = await fetchWalletBalanceMetrics({
+            taxWalletAddress: config.taxWalletAddress,
+            buybackWalletAddress: config.buybackWalletAddress,
+            buybackBurnWalletAddress: config.buybackBurnWalletAddress,
+            proxyUrl: config.proxyUrl,
+          });
+          const unavailableMetrics = createUnavailableTokenMetrics();
+          data = {
+            ...unavailableMetrics,
+            ...walletBalanceMetrics,
+            buybackWalletAddress:
+              config.buybackWalletAddress ||
+              unavailableMetrics.buybackWalletAddress,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+
         metricsCache = {
+          cacheKey,
           data,
           expiresAt: Date.now() + TOKEN_METRICS_CACHE_TTL_MS,
         };
@@ -358,7 +445,6 @@ async function startServer() {
 
       const records = createReturnRecord(RETURN_RECORDS_FILE_PATH, {
         time: String(body.time ?? ""),
-        endTime: String(body.endTime ?? ""),
         returnRate: returnRateValue,
         pnl: pnlValue,
       });
@@ -393,7 +479,6 @@ async function startServer() {
         req.params.id,
         {
           time: String(body.time ?? ""),
-          endTime: String(body.endTime ?? ""),
           returnRate: returnRateValue,
           pnl: pnlValue,
         }

@@ -1,0 +1,23 @@
+{
+  "socialTelegramUrl": "https://t.me/your_channel",
+  "socialXUrl": "https://x.com/your_account",
+  "socialBinanceUrl": "https://www.binance.com/zh-CN/square",
+  "tokenContractAddress": "",
+  "taxWalletAddress": "0xb495D301be067166e3cb9890D615508eB1C38186",
+  "buybackWalletAddress": "0xb495D301be067166e3cb9890D615508eB1C38186",
+  "buybackBurnWalletAddress": "0xb495D301be067166e3cb9890D615508eB1C38186",
+  "totalAssets": "$198.50",
+  "weeklyGain": "+5.2%",
+  "returnRate": "12.8%",
+  "binanceMargin": "$15,000",
+  "followers": "1247",
+  "aum": "$89,700",
+  "weeklyReturn": "+4.5%",
+  "monthlyReturn": "+12.8%",
+  "totalReturn": "+135.2%",
+  "winRate": "72.5%",
+  "maxDrawdown": "-8.3%",
+  "weeklyExpense": "$3,250",
+  "donationTotal": "150",
+  "donationTarget": "方鸭自闭症慈善社区"
+}

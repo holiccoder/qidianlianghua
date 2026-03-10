@@ -4,14 +4,12 @@ import path from "node:path";
 export interface ReturnRecord {
   id: string;
   time: string;
-  endTime: string;
   returnRate: number;
   pnl: number;
 }
 
 export interface CreateReturnRecordInput {
   time: string;
-  endTime: string;
   returnRate: number | string;
   pnl: number | string;
 }
@@ -35,18 +33,24 @@ function parseRecordTime(value: string): Date | null {
   return parsed;
 }
 
-function formatRecordTime(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+function parseRecordIdTimestamp(id: string): number {
+  const matched = id.match(/^(\d{10,})/);
+  if (!matched) {
+    return 0;
+  }
+
+  const parsed = Number(matched[1]);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function normalizeRecordTime(value: string): string {
-  const parsed = parseRecordTime(value);
-  if (!parsed) {
-    throw new Error("Invalid return record time");
+  const normalized = value.trim();
+
+  if (!normalized) {
+    throw new Error("Return record time is required");
   }
 
-  return formatRecordTime(parsed);
+  return normalized;
 }
 
 function parseDecimal(value: unknown): number {
@@ -64,13 +68,17 @@ function parseDecimal(value: unknown): number {
   throw new Error("Invalid decimal value");
 }
 
-function toTimestamp(time: string): number {
-  const parsed = parseRecordTime(time);
-  return parsed ? parsed.getTime() : 0;
+function toTimestamp(record: ReturnRecord): number {
+  const parsedTime = parseRecordTime(record.time);
+  if (parsedTime) {
+    return parsedTime.getTime();
+  }
+
+  return parseRecordIdTimestamp(record.id);
 }
 
 function sortRecords(records: ReturnRecord[]): ReturnRecord[] {
-  return [...records].sort((a, b) => toTimestamp(b.time) - toTimestamp(a.time));
+  return [...records].sort((a, b) => toTimestamp(b) - toTimestamp(a));
 }
 
 function normalizeRecord(raw: unknown): ReturnRecord | null {
@@ -81,7 +89,6 @@ function normalizeRecord(raw: unknown): ReturnRecord | null {
   const candidate = raw as {
     id?: unknown;
     time?: unknown;
-    endTime?: unknown;
     returnRate?: unknown;
     pnl?: unknown;
   };
@@ -93,13 +100,10 @@ function normalizeRecord(raw: unknown): ReturnRecord | null {
   try {
     const returnRate = parseDecimal(candidate.returnRate);
     const pnl = parseDecimal(candidate.pnl);
-    const endTime =
-      typeof candidate.endTime === "string" ? candidate.endTime : "";
 
     return {
       id: String(candidate.id ?? `${Date.now()}`),
       time: normalizeRecordTime(candidate.time),
-      endTime,
       returnRate,
       pnl,
     };
@@ -153,7 +157,6 @@ export function createReturnRecord(
   const nextRecord: ReturnRecord = {
     id: `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
     time: normalizeRecordTime(input.time),
-    endTime: typeof input.endTime === "string" ? input.endTime : "",
     returnRate: parseDecimal(input.returnRate),
     pnl: parseDecimal(input.pnl),
   };
@@ -180,7 +183,6 @@ export function updateReturnRecord(
   records[index] = {
     ...records[index],
     time: normalizeRecordTime(input.time),
-    endTime: typeof input.endTime === "string" ? input.endTime.trim() : "",
     returnRate: parseDecimal(input.returnRate),
     pnl: parseDecimal(input.pnl),
   };

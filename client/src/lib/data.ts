@@ -1,9 +1,10 @@
 /**
- * 奇点量化 AI交易实验室 - 数据常量
+ * 虾交易 AI交易实验室 - 数据常量
  * 所有展示数据集中管理
  */
 
 const env = import.meta.env as Record<string, string | undefined>;
+const DESTROYED_TOTAL_CACHE_KEY = "token_metrics_burned_total";
 
 function getEnvText(key: string, fallback: string): string {
   const value = env[key]?.trim();
@@ -21,11 +22,39 @@ function getEnvNumber(key: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function getCachedDestroyedTotal(fallback: string): string {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const cachedValue = window.localStorage
+    .getItem(DESTROYED_TOTAL_CACHE_KEY)
+    ?.trim();
+
+  return cachedValue || fallback;
+}
+
+export function updateDestroyedFallback(value: string): void {
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    return;
+  }
+
+  overviewData.destroyed = normalizedValue;
+
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(DESTROYED_TOTAL_CACHE_KEY, normalizedValue);
+  }
+}
+
 // ===== 统筹页面数据 =====
 export const overviewData = {
   currentPrice: "$0.0001358",
   marketCap: "$135.80K",
-  destroyed: "113,103,150",
+  destroyed: getCachedDestroyedTotal(
+    getEnvText("VITE_DESTROYED_TOTAL", "114,804,858")
+  ),
   buybackWalletBalance: "0.430 BNB",
   totalAssets: getEnvText("VITE_TOTAL_ASSETS", "$198.50"),
   weeklyGain: getEnvText("VITE_WEEKLY_GAIN", "+5.2%"),
@@ -35,7 +64,7 @@ export const overviewData = {
   aum: getEnvText("VITE_AUM", "$89,500"),
   weeklyReturn: getEnvText("VITE_WEEKLY_RETURN", "+3.6%"),
   donationTotal: getEnvText("VITE_DONATION_TOTAL", "$2,580"),
-  donationTarget: getEnvText("VITE_DONATION_TARGET", "方鸭社区"),
+  donationTarget: getEnvText("VITE_DONATION_TARGET", "方鸭自闭症慈善社区"),
 };
 
 // ===== 合约地址 =====
@@ -155,11 +184,11 @@ export const tradeRecords = [
 // ===== 收益率数据 =====
 export const returnData = {
   daily: "+0.8%",
-  weekly: "+3.6%",
-  monthly: "+12.8%",
-  total: "+45.2%",
-  winRate: "72.5%",
-  maxDrawdown: "-8.3%",
+  weekly: getEnvText("VITE_WEEKLY_RETURN", "+3.6%"),
+  monthly: getEnvText("VITE_MONTHLY_RETURN", "+12.8%"),
+  total: getEnvText("VITE_TOTAL_RETURN", "+45.2%"),
+  winRate: getEnvText("VITE_WIN_RATE", "72.5%"),
+  maxDrawdown: getEnvText("VITE_MAX_DRAWDOWN", "-8.3%"),
   sharpeRatio: "2.14",
   totalTrades: 1247,
   weeklyChart: [
@@ -257,49 +286,49 @@ export const assetAllocation = {
 
 // ===== 捐款数据 =====
 export const donationData = {
-  totalDonation: "$2,580",
-  donationTarget: "方鸭社区",
+  totalDonation: getEnvText("VITE_DONATION_TOTAL", "$2,580"),
+  donationTarget: "方鸭自闭症慈善社区",
   records: [
     {
       id: 1,
       time: "2026-03-05",
       amount: "$500",
-      target: "方鸭社区",
+      target: "方鸭自闭症慈善社区",
       status: "已完成",
     },
     {
       id: 2,
       time: "2026-02-20",
       amount: "$450",
-      target: "方鸭社区",
+      target: "方鸭自闭症慈善社区",
       status: "已完成",
     },
     {
       id: 3,
       time: "2026-02-05",
       amount: "$380",
-      target: "方鸭社区",
+      target: "方鸭自闭症慈善社区",
       status: "已完成",
     },
     {
       id: 4,
       time: "2026-01-20",
       amount: "$420",
-      target: "方鸭社区",
+      target: "方鸭自闭症慈善社区",
       status: "已完成",
     },
     {
       id: 5,
       time: "2026-01-05",
       amount: "$350",
-      target: "方鸭社区",
+      target: "方鸭自闭症慈善社区",
       status: "已完成",
     },
     {
       id: 6,
       time: "2025-12-20",
       amount: "$480",
-      target: "方鸭社区",
+      target: "方鸭自闭症慈善社区",
       status: "已完成",
     },
   ],
@@ -308,13 +337,13 @@ export const donationData = {
 // ===== 税收分配 =====
 export const taxDistribution = [
   { label: "AI 自动合约交易资金", percentage: 80, color: "#10b981" },
-  { label: "自动回购并销毁 $奇点量化", percentage: 20, color: "#f59e0b" },
+  { label: "自动回购并销毁 $虾交易", percentage: 20, color: "#f59e0b" },
 ];
 
 // ===== 合约收益分配 =====
 export const profitDistribution = [
   { label: "重新投入交易本金", percentage: 40, color: "#10b981" },
-  { label: "回购并销毁 $奇点量化", percentage: 30, color: "#f59e0b" },
+  { label: "回购并销毁 $虾交易", percentage: 30, color: "#f59e0b" },
   { label: "AI自动交易策略团队", percentage: 20, color: "#38bdf8" },
   { label: "慈善捐助", percentage: 10, color: "#f43f5e" },
 ];
@@ -345,11 +374,12 @@ export const communityHighlights = [
 
 // ===== 导航标签 =====
 export const navTabs = [
-  { id: "singularity", label: "奇点", icon: "Zap" },
+  { id: "singularity", label: "虾交易", icon: "Zap" },
   { id: "trades", label: "交易记录", icon: "FileText" },
   { id: "returns", label: "收益", icon: "TrendingUp" },
   { id: "buyback", label: "回购", icon: "RefreshCw" },
   { id: "expenses", label: "开支", icon: "Receipt" },
   { id: "allocation", label: "资产配置", icon: "PieChart" },
   { id: "donation", label: "捐款", icon: "Heart" },
+  { id: "team", label: "团队", icon: "Users" },
 ];

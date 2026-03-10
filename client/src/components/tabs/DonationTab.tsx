@@ -3,7 +3,7 @@
  * 展示捐款总额和历史记录
  */
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import DataCard from "../DataCard";
 import { donationData } from "@/lib/data";
 import { Heart, CheckCircle2 } from "lucide-react";
@@ -18,6 +18,7 @@ interface DonationRecordRow {
 }
 
 interface PublicSettingsResponse {
+  donationTotal?: string;
   donationTarget?: string;
 }
 
@@ -87,10 +88,12 @@ function formatAmount(value: number): string {
 
 export default function DonationTab() {
   const [records, setRecords] = useState<DonationRecordRow[]>([]);
+  const [donationTotal, setDonationTotal] = useState(
+    donationData.totalDonation
+  );
   const [donationTarget, setDonationTarget] = useState(
     donationData.donationTarget
   );
-  const [hasLoadedRecords, setHasLoadedRecords] = useState(false);
 
   useEffect(() => {
     let isDisposed = false;
@@ -109,13 +112,12 @@ export default function DonationTab() {
         }
 
         setRecords(normalizeDonationRows(payload));
-        setHasLoadedRecords(true);
       } catch {
         // Keep current records when request fails.
       }
     }
 
-    async function loadDonationTarget() {
+    async function loadPublicSettings() {
       try {
         const response = await fetch("/api/config");
         if (!response.ok) {
@@ -128,31 +130,27 @@ export default function DonationTab() {
           return;
         }
 
+        const nextDonationTotal = payload.donationTotal?.trim();
+        if (nextDonationTotal) {
+          setDonationTotal(nextDonationTotal);
+        }
+
         const nextDonationTarget = payload.donationTarget?.trim();
         if (nextDonationTarget) {
           setDonationTarget(nextDonationTarget);
         }
       } catch {
-        // Keep fallback donation target when request fails.
+        // Keep fallback donation settings when request fails.
       }
     }
 
     void loadDonations();
-    void loadDonationTarget();
+    void loadPublicSettings();
 
     return () => {
       isDisposed = true;
     };
   }, []);
-
-  const totalDonation = useMemo(
-    () => records.reduce((sum, record) => sum + record.amount, 0),
-    [records]
-  );
-
-  const donationTotalValue = hasLoadedRecords
-    ? formatAmount(totalDonation)
-    : donationData.totalDonation;
 
   return (
     <motion.div
@@ -178,7 +176,7 @@ export default function DonationTab() {
           <div className="absolute bottom-4 left-5">
             <h3 className="text-lg font-bold text-foreground">慈善捐助</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              10% 合约收益用于慈善捐助，回馈社区
+              10% 合约收益用于慈善捐助
             </p>
           </div>
         </div>
@@ -188,7 +186,7 @@ export default function DonationTab() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <DataCard
           label="捐款总金额"
-          value={donationTotalValue}
+          value={donationTotal}
           icon="Heart"
           color="red"
           delay={0.1}
