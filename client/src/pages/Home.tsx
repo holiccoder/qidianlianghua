@@ -6,7 +6,7 @@
  * - JetBrains Mono等宽字体用于数据
  * - pill形标签导航，卡片入场动画
  */
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Header from "@/components/Header";
 import ContractAddress from "@/components/ContractAddress";
@@ -34,8 +34,56 @@ const tabComponents: Record<string, React.ComponentType> = {
   donation: DonationTab,
 };
 
+interface PublicSettingsResponse {
+  tokenContractAddress?: string;
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState("singularity");
+  const [hasTokenContractAddress, setHasTokenContractAddress] = useState(false);
+
+  useEffect(() => {
+    let isDisposed = false;
+
+    async function loadSettings() {
+      try {
+        const response = await fetch("/api/config");
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as PublicSettingsResponse;
+
+        if (isDisposed) {
+          return;
+        }
+
+        setHasTokenContractAddress(
+          Boolean(payload.tokenContractAddress?.trim().length)
+        );
+      } catch {
+        // Keep current tab visibility when request fails.
+      }
+    }
+
+    void loadSettings();
+
+    return () => {
+      isDisposed = true;
+    };
+  }, []);
+
+  const visibleTabs = useMemo(
+    () =>
+      navTabs.filter(tab => tab.id !== "buyback" || hasTokenContractAddress),
+    [hasTokenContractAddress]
+  );
+
+  useEffect(() => {
+    if (activeTab === "buyback" && !hasTokenContractAddress) {
+      setActiveTab("singularity");
+    }
+  }, [activeTab, hasTokenContractAddress]);
 
   const ActiveComponent = tabComponents[activeTab] || SingularityTab;
 
@@ -55,7 +103,7 @@ export default function Home() {
       {/* Content */}
       <div className="relative z-10">
         <Header
-          tabs={navTabs}
+          tabs={visibleTabs}
           activeTab={activeTab}
           onTabChange={setActiveTab}
         />

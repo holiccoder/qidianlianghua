@@ -78,7 +78,7 @@ export default function TeamTab() {
 
             <div className="space-y-1">
               <p className="font-medium text-foreground">
-                「Chiyikawa」｜社区运营与管理
+                「方运」｜社区运营与管理
               </p>
               <p>
                 负责虾交易社区的日常运营与社群管理，包括社群秩序维护、成员沟通、活动组织以及信息同步，确保社区稳定发展与成员互动。
